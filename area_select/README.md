@@ -1,93 +1,91 @@
 # Area select
 
-Click a spot on a still picture. The picture is 480 by 320. The same questions also show up as short clips, and those are in the video note.
-
-Which reading I use depends on the words.
-
-Letters, when the question names a group. Arrows, when they stand out from a circle. A broken pattern. Rings you can lift off a larger circle. Something turning against the group. A flower the bee never lands on. If none of those fit, I treat it as odd one out.
+A click on a still picture, 480 by 320. The words pick which measurement runs. Letters behind ribs. Arrows around a circle. A broken pattern. Rings that can be lifted off. Turning, the bee, and odd one out are specified here too, but the still boards for those three are other puzzles filed under the question. Those three show up as clips, and the clip measurements are in the video note.
 
 ## Letters
 
-Click the letters that belong to the group. The question looks like "the two letters that are part of this group: ABCBA".
+The letters sit behind ribs about 16 pixels apart. The ribs are a stripe, so they are one sharp line in the horizontal frequencies of the picture, plus the repeats of that line. Notching those frequencies out removes the glass and leaves the letters.
 
-The letters sit behind a ribbed glass. The ribs are about 16 pixels apart, a little slanted, and they lighten and darken the picture in stripes. I find that stripe as one sharp line in the frequency of the picture, and I notch it out, along with its repeats. What's left, I turn into ink: how far each pixel's colour is from a background that ignores the letters. The background is a wide median, so a letter doesn't pull it. A last horizontal smear, one rib wide, cleans what's left of the stripe.
+What remains is turned into ink. A wide median, about 100 pixels, estimates a background that ignores a letter, because a letter is narrower than the median window. Ink is the colour distance from that background. A last horizontal smear, one rib wide, clears what is left of the stripe.
 
-The strongest ink peaks, away from the border, are the letter places. I slide each peak onto the middle of its letter. A small net reads a crop of the ink. It knows A to Z and "this isn't a letter". It was trained only on boards I generated: pastel ground, swirls, a few heavy letters, the same ribbed glass, and JPEG on the way out. About thirty thousand crops. No real board in the training. The score of a place is the summed probability of the letters named in the group. I click the top two, or three, or four, depending on the question. If every click is at least half sure, I'm confident.
+Places are the peaks of a smoothed ink, away from the border, merged if they fall within 30 pixels of each other. Each peak is slid to the centre of mass of the ink around it. The crop of that ink, 48 by 48, is what gets read.
+
+The reader is a small net with 27 outputs, A to Z and "not a letter". It is taught on drawn boards only. The drawing places the letters, runs the same rib and the same ink, and the correct letter of each crop is the letter that was drawn. About thirty thousand crops. A real board is not in that set.
+
+The score of a place is the sum of the probabilities of the letters named in the group. Sum, not max. The group is several letters, and a place is good if its probability sits on any of them. The top N places are clicked. N is the count in the question, and it is 2 when the question does not give one.
+
+A click is called high when every chosen place has a group probability of at least 0.5. That is the same half cut as elsewhere. Under 0.5 the mass of the softmax is on letters outside the group, or on "not a letter".
 
 ![letters steps](img/letters_steps.gif)
 
 ![letters](img/letters.png)
 
-*The steps on one board. The last frame is the click, in green.*
+*The last frame is the click.*
 
-On that board the rib spacing comes out at 16.6 pixels, and the group is ABC. The places read as K, Z, A, B, V, and two spots that are the border or a swirl and get read as no letter. A and B are the sure ones, near (101, 90) and (380, 156). The clicks on this board were (111, 110) and (393, 171). The V crop is actually a Y. The net's top guess there is just wrong, and its probability on the group letters is about zero, so it doesn't get clicked.
+On that board the rib period comes out at 16.6 pixels. The group is ABC. The places read as K 0.00, Z 0.01, A 1.00, B 0.92, V 0.00, and two spots whose probability of "not a letter" is 0.62 and 0.99.
+
+A at 1.00 and B at 0.92 are the group mass. K, Z and V have essentially none of it, so they are not in the top two. The V crop is a Y. The net's guess there is wrong, and the group probability is still about 0, so the wrong guess does not become a click. The clicks are near (101, 90) and (380, 156). The clicks on this board were (111, 110) and (393, 171).
 
 ## Arrows
 
-Pick the arrows that stand out from the circle.
+About fifteen faint arrows run around a circle, all but two pointing the same way. A reversed arrow is not a different colour. It is the same colour with the head facing the other way. Colour cannot separate them. The head can.
 
-About fifteen faint arrows run around a circle, all pointing the same way except two. A reversed arrow's head faces its neighbour's head. Like `> > > < > >`.
+The arrow-coloured pixels are the ones where red and blue both exceed green, after a wide blur has been subtracted so a slow stain is not an arrow. A circle is fit through those pixels. The centre is then nudged until the band around the circle is mirror-symmetric. An arrow is symmetric about its own axis, so a wrong centre makes the unwrapped band fail to fold onto itself. The nudge is a few pixels. It is not a second circle fit.
 
-I fit a circle through the pixels that have the arrow colour, then I nudge the centre until the band around the circle is mirror-symmetric. An arrow is symmetric about its own axis, so a good centre makes the band fold onto itself. I cut the ring open into a straight strip. Now the normal arrows point one way and the reversed ones point the other.
+The ring is cut into a straight strip, one pixel of arc per column. A head pointing one way has its outer wing on one diagonal and its inner wing on the other. The product of the horizontal edge and the vertical edge is negative on one diagonal and positive on the other. Sum that product over the outer half of the strip, minus the sum over the inner half, and smooth along the strip. A normal head becomes a bump. A reversed head becomes a dip. A shaft is flat. Its edges do not form two opposing diagonals, so it adds nothing.
 
-The direction is in the head, not the shaft. A head pointing right has its outer wing going one diagonal and its inner wing going the other. I multiply the horizontal edge by the vertical edge. That product is negative on one diagonal and positive on the other. Sum the outer part of the strip minus the inner part, and a normal head becomes a bump and a reversed head becomes a dip. Shafts are flat and add nothing.
+The spacing of the bumps is the lag where the strip correlates with itself. The search for that lag only accepts a spacing that would mean between 9 and 22 arrows. Fewer or more than that is not this puzzle, and the lag would be locking onto noise.
 
-Whichever sign most of the heads share is the flow. I click the strongest heads of the other sign.
+The sign whose peaks add up to more is the flow. The clicks are the strongest peaks of the other sign. A peak has to be at least 0.6 of a spacing away from the previous peak of the same sign, or the same head is counted twice.
 
-I tried, earlier, cutting the ring into slices and taking the long axis of each slice as the arrow. That axis mostly points out from the centre of the circle, so "with the flow" or "against it" was noise. The wings are what carry the direction.
+The answer is called high when the weakest click is at least twice the next peak of that sign, and at least half the median normal peak. Twice is the gap between a real reversed head and the ripple beside it. Half the normal median means the reversed head is a head, not a dent in the shaft.
+
+An earlier measurement cut the ring into slices and took the long axis of each slice as the arrow. That axis points outward from the centre of the circle for every slice, reversed or not. The with-or-against bit was noise. The wing product is the measurement that actually changes sign.
 
 ![arrows steps](img/arrows_steps.gif)
 
 ![arrows](img/arrows.png)
 
-*Cyan heads go with the flow. Orange heads go against it. Green is the click. Under the picture, the unwrapped ring. Bumps are the normal heads, dips are the reversed ones.*
+*Cyan with the flow. Orange against it. Under the picture, bumps and dips.*
 
-On that board the circle settles near (293, 155) with radius 116. Unwrapped, that's about 729 pixels around, and the arrows are about 51 pixels apart. Fifteen heads point clockwise. The two the other way are much stronger than the next dip, several times stronger, and they're in the same range as a normal head, so I'm confident. The clicks are near (340, 49) and (258, 265). The clicks on this board were (342, 62) and (251, 265).
+On that board the circle settles near (293, 155), radius 116. Unwrapped, 729 pixels around, spacing 51 pixels, which is about 14 arrows, inside 9 to 22. Fifteen heads point clockwise. The two the other way have size 143774 and 95188. The next dip is 21350.
 
-How many arrows I expect is loose. I look for a spacing that would mean somewhere between 9 and 22 of them. A head has to be separated from the next head of the same sign by at least a bit more than half a spacing, or I'm counting the same head twice.
+`143774 / 21350` is about 6.7, which is past 2. The normal median is 102828, and 95188 is more than half of it. Both reversed heads clear both cuts. The clicks are near (340, 49) and (258, 265). The clicks on this board were (342, 62) and (251, 265).
 
 ## A broken pattern
 
-Select the items that break the pattern. Usually three of them.
+Tiles in a light grid. The repeating direction is whichever of rows or columns is more alike inside itself. A stranger is a tile far from the typical object of its own line, and closer to some other line.
 
-There's a light tile grid, often 5 by 5. I embed each tile. I check whether the columns look more alike than the rows, or the other way around, and that direction is the pattern. For each line I take the typical object as the majority of its tiles, not the average of all of them, because the stranger would pull the average. A tile's fit is how close it is to its own line, minus a penalty if it's actually closer to some other line. I click the worst fits.
+The grid is the pale, unsaturated pixels. The extent of those pixels is divided by 63, which is the tile size these boards are drawn at, and rounded. The grid is kept only when every cell is at least 12% pale, the centre of every cell is at least 25% ink, and both sides have at least four cells. Those three cuts reject a pale band that is not a grid.
 
-The grid itself is the pale, unsaturated pixels. I only believe the grid when every cell is light enough, the middle of every cell has some ink, and both sides have at least four cells. A gap in the tiles would otherwise look like a grid that isn't there.
+Each cell is embedded. Similarity is the cosine of two cells. For each line, the medoid is the cell most like the others. The prototype is the average of the medoid and the cells closest to it, the closest half of the line plus one, normalised. The stranger is left out of that average on purpose. If it were included it would pull the prototype toward itself and stop looking strange.
+
+`fit = cosine with own prototype - 0.5 × max(0, best other prototype - own)`
+
+The 0.5 is a weight, not a probability. A tile that is a bit closer to another line pays half that extra similarity. Without it, a tile that matches its own line poorly but matches every line poorly looks like the stranger. The clicks are the N lowest fits. N comes from the question, and it is 3 when the question does not say.
 
 ![pattern](img/pattern.png)
 
-*The grid that was found. The red marks are the three strangers, placed by eye on this figure. I didn't have the fit numbers stored for this board.*
+*The grid that was found. The red marks were placed by eye on this figure. The fit numbers for this board were not stored.*
 
-The box of that grid runs from about (78, 0) to (393, 319). The least light cell is still about half tile, and the least ink in a cell centre is about a third, so it passes as a grid.
+The box runs from about (78, 0) to (393, 319). The least pale cell is still about 0.53, above 0.12. The least ink in a cell centre is about 0.34, above 0.25. Both cuts pass, so the extent is treated as a 5 by 5 grid rather than a pale stain.
 
 ## Rings
 
-Click the rings that can be lifted off the large circle. The question asks for a count. The ones I've seen ask for three.
+A ring that passes over the big circle is an unbroken green tube. A ring trapped under the circle is broken where the circle crosses it. The score is how much of the tube is visible.
 
-I look for the green tubes. A ring that passes over the big circle is an unbroken tube. A ring that's trapped under the circle has gaps where the circle crosses it. I score each ring by how much of its tube is still visible, walking around it in steps of 5 degrees, and I click the top three. The click is the middle of the ring's pixels.
+Green tube pixels are the ones where green exceeds red and blue by the ratios written into the mask, and green itself is not bright. Those ratios separate the tube from the circle and from the background. A blob of at least 300 pixels, outer radius at least 12, filling at least 35% of its annulus, is a ring. 35% drops a green smear that happens to be round.
 
-A blob only counts as a ring if it's big enough, the outer radius is at least a dozen pixels, and the pixels fill a decent share of the annulus. Otherwise a smudge of green becomes a ring.
+The tube fraction walks 72 angles, every 5 degrees, and asks whether a tube pixel sits within 3 pixels of the mid radius. The fraction is the share of angles that say yes. The top 3 fractions are the clicks, which is the count these questions ask for. The click is the average of the ring's pixels.
 
-## Turning, as a still picture
+## Turning, as a still
 
-Find the thing turning against the group, when the task is one picture rather than a clip.
+No still board of this question has been captured. The filed stills are other puzzles. The measurement, if a still were real, would be: blades are the closed dark regions, ignoring the right-hand 20% where the piece sits. The hub is the interior point whose blade tips are most evenly spaced. Tip redness is the share of the outer shell of an arm, past its 80th percentile of radius, where red exceeds green by more than 60. The odd arm is the one with the lowest redness, and only if at least two arms are above 0.25 and the odd arm is under 0.85 of the median. 0.25 means a tip is actually red. 0.85 of the median means the odd arm is not just the least red of a set that is all red. The clip version measures motion instead of redness, because a clip has time and a still does not.
 
-I don't have a real still board of this. The still images that got filed under the question are other puzzles. Screw heads, vials, shape grids, scales. In practice this one arrives as a clip. The clip version is in the video note.
+## The bee, as a still
 
-What I would do on a still, if I had one: the blades are the closed dark regions. The hub is the point whose blade tips are spaced most evenly around it. Every blade has its red tip at the same end except one. I click the outer half of the arm with the least red at the tip. I want at least two arms that clearly have a red tip before I call one of them the odd one. If the "odd" arm is almost as red as the others, I don't answer.
-
-## The bee, as a still picture
-
-Click the flower the bee never lands on, as a still picture.
-
-Same situation. I don't have a real still board. What I have filed under the question is other puzzles. The task shows up as a clip.
-
-If I had to answer a still, I'd cut the picture into a 3 by 3 and embed each cell against "a photo of a bee on a flower". The lowest cell is the click. That's a weak reading. The clip version watches where the bee actually sits, which is the one to trust.
+No still board of this question either. A still reading would cut the picture into a 3 by 3 and embed each cell against "a photo of a bee on a flower". The lowest cosine would be the click. That measurement never sees a landing. The clip version counts frames where the bee sits inside a flower, which is the event the question names.
 
 ## Odd one out
 
-Anything in this group that isn't letters, arrows, a pattern, rings, turning, or the bee.
-
-I don't have a real still board for this either. The stills that land here are "select the item related to sports and games", and the pictures are an elephant, a cube, a shape grid, scales. The sports question shows up as a clip.
-
-The still reading cuts the picture into a 3 by 3, shrinks each cell to a small grey patch, and clicks the cell whose pixels differ most from the other eight. I also compute what happens if I mirror a cell before comparing. That number doesn't change the click.
+No still board for this route either. The filed pictures are other puzzles. The measurement cuts the picture into a 3 by 3, shrinks each cell to 64 by 64 grey, and subtracts the mean and divides by the spread so brightness cannot decide it. The distance of a cell is the sum, over the other eight, of the mean squared pixel difference. That sum is divided by the average distance, so the number is a ratio to the typical cell. The click is the largest ratio. A mirrored copy of each cell is also compared. That second number does not change which cell wins.

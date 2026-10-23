@@ -1,14 +1,20 @@
 # Tile boards
 
-A 3 by 3 of pictures, and a question like "find all the things with on and off states". Click every tile that fits.
+Nine pictures, and a question. The question is not open. Each wording comes back with the same small set of objects, so the set can be written down once. A tile is then scored against that list, not against the whole world.
 
-The wording is not open-ended. Each question draws from a small set of objects, and once I've seen the boards I can write that set down. That's the whole trick for the questions I've listed. A tile is embedded with CLIP, compared with a few text prompts for each object, and turned into a probability. If the yes objects hold at least half of that probability, I click the tile. If no tile reaches half, I click the single best one, so the answer isn't empty.
+The score is a probability. CLIP turns the tile and each text prompt into a vector of length 1. The dot product is the cosine. Cosines between a photo and a sentence sit in a narrow band, so they are multiplied by 100 before the softmax. That 100 is the scale CLIP was trained with. It spreads a difference of 0.02 in cosine into a difference that the softmax can actually separate.
+
+`probability of a class = softmax(100 × cosine with that class)`
+
+A class is the average of its prompts, normalised again. The yes-probability of a tile is the sum of the probabilities of the yes classes. A tile is clicked when that sum is at least 0.5.
+
+0.5 is the point where the yes classes hold as much probability as everything else combined. It is not fit per board. If no tile reaches 0.5, the best tile is clicked anyway, because an empty answer is not a reading, it is a failure of the list.
 
 ![class bank](img/1-class-bank.png)
 
 ![class bank steps](img/label_binary_steps.gif)
 
-*Nearest object on each tile, then how much of the probability sits on a yes object. Green is at or above a half.*
+*Nearest object, then the share of probability on a yes object. Green is at or above one half.*
 
 | the question is about | yes | no |
 |---|---|---|
@@ -20,48 +26,66 @@ The wording is not open-ended. Each question draws from a small set of objects, 
 | things found in a gym | a basketball | hawk, road roller, reindeer |
 | costs more than what's shown | an airplane | envelope, broom, basketball |
 
-The watermark row is there because some tiles are a word printed over the picture, and CLIP locks onto the word. I treat that as its own no-class.
+The no-list is how the probability gets a place to go. If the only class were "phone", every tile would score as a phone to some degree and the softmax would have nothing to push the banana into. The watermark row exists because on some tiles the printed word is what the embedding locks onto, not the object under it. That tile has to be a class of its own or it gets called a house.
 
-A heavy purple diamond over a tile can hide the object. I had a phone under one of those score only 0.28, on a board where every clean tile was obvious.
+On the class-bank picture the nine yes-probabilities are about 0.002, 0, 0.001, 0.003, 0, 0.999, 0.993, 0.004, 0.007.
 
-On the class-bank picture the nine yes-probabilities are about 0, 0, 0, 0, 0, 0.999, 0.993, 0, 0. Only the two phones clear a half.
+`0.999` and `0.993` are above 0.5. The other seven are two orders of magnitude under it. The gap is the list doing its job: a phone's cosine with "phone" beats its cosine with "banana" by enough that, after the times-100 softmax, almost all the mass sits on phone.
+
+A heavy purple diamond over a tile hides the object from the embedding. One phone under that overlay scored 0.28. 0.28 is under 0.5, so the half-probability rule misses it. The rule has no separate path for an overlay.
 
 ## Absorb
 
-"Absorb liquid" is the same embeddings, but the prompts aren't what decides. I fit a small logistic model on tiles people had labelled. Yes is a paper towel roll, a sponge, or folded cloths. No is a glass of water, a water bottle, or an iced drink. Those nos are the trap, because they're liquid and they don't absorb. A tile is clicked at 0.5 or above. If none reach that, I take the best one.
+"Absorb liquid" uses the same picture vectors. The prompts are a bad teacher here, because a glass of water is liquid and it does not absorb, and the sentence "absorbs liquid" sits near both. So the decision is a logistic model on the picture vector.
 
-Each paraphrase of a prompt is weighted so the paraphrases share the same total, otherwise one wording would dominate the fit. While fitting I hold out one board at a time.
+A training row is one tile. The label is whether a person marked it. Yes is a paper towel roll, a sponge, or folded cloths. No is a glass of water, a water bottle, or an iced drink. Those nos are the trap the prompts fall into.
+
+`p = 1 / (1 + exp(-(w · vector + b)))`
+
+`w` is 512 weights, one per dimension of the vector. A tile is clicked at `p` of 0.5 or above, the same half-probability cut. If none reach it, the best `p` is clicked.
+
+Each paraphrase of a prompt is weighted so the paraphrases share one total. Otherwise one wording of "sponge" would count five times and dominate `w`. While the weights are fit, one board is held out at a time, so a tile is not scored by a model that already saw its neighbours on the same board.
 
 ## Melt
 
-One bag of "this melts" prompts and one bag of "this never melts". A tile's score is how close it is to the first bag minus how close it is to the second. I click every tile within 0.005 of the best score. Melt questions often have several yes tiles sitting at almost the same score, so a single winner would be wrong.
+One bag of "this melts" prompts, one bag of "this never melts". Both bags are averaged into a single vector.
 
-## A reference picture
+`m = cosine with melts - cosine with never melts`
 
-"Select the vehicles that could be towed by this one", and "heavier than the one shown".
+Melt questions have several yes tiles, and their `m` values sit on top of each other. Clicking only the maximum would drop the rest. Every tile within 0.005 of the best `m` is clicked. 0.005 is the thickness of that tie. It is not a probability. `m` is a difference of cosines, and 0.005 is a small slice of that difference. A tile 0.02 below the best is a different object, not another melter.
 
-The reference usually arrives as a strip of four frames. One frame is colour noise. Two are decoys copied from the tiles. One is the real reference. I drop the noise by how much edge it has. A noisy frame is full of edges. Then I keep the frame that looks least like any tile, because the decoys are tiles and the real reference isn't.
+## A reference strip
 
-I name every tile from a short list of objects I gave a typical weight and, for vehicles, a towing capacity. Tow or move means a road vehicle a tow truck can pull, which I cap at 8000 kg. Heavier means heavier than the reference. Lighter means lighter.
+"Vehicles that could be towed by this one", and "heavier than the one shown".
 
-The printed words on the tiles point the wrong way, so before I name a tile I remove the direction in the embedding that those words use. I do that from prompts like the word "car", "wheel", "wings", "bird". I also read the tile without removing that direction, and for a tow question I want both readings to agree it's a road vehicle under the weight cap.
+The reference arrives as a strip of four frames. One frame is colour noise. Two are decoys copied from the tiles. One is the reference.
+
+Noise is the frame whose edges are dense. Edge energy is the mean size of the brightness gradient. A flat object frame sits near 10. The noise frame sits near 45. The cut is 25, in the gap between those. On the picture below the four energies are 45.9, 11.1, 12.6 and 8.2, so the first frame is dropped and the other three stay.
+
+Among the three, the reference is the frame least similar to any tile. A decoy is a copy of a tile, so its best cosine with the tiles is high. The real reference is not a tile, so its best cosine is the low one.
+
+Each remaining tile is named from a fixed list. Each entry has a few prompts, a typical mass in kilograms, a kind (road, water, air, construction), and a tow capacity. The name is the entry with the highest cosine, after the direction of printed words has been removed.
+
+That direction is the top components of prompts like the word "car", "wheel", "wings", "bird". A tile vector is projected off those components before it is named, and it is also named without that projection. For a tow question both names have to agree. A word printed on the tile must not be the only reason it was called a car.
+
+Tow or move: kind road, and mass at or under 8000 kg. 8000 is the tow-truck entry's capacity, not a mass that was measured off the reference. The reference often gets read as whatever object it looks like, which may not be the truck. Heavier means mass above the reference's mass. Lighter means mass below it. If the rule selects nothing, the single nearest candidate is returned.
 
 ![comparative](img/2-comparative.png)
 
-On that picture the four frames have edge energies about 46, 11, 13 and 8, so the first frame is the noise. The tiles come out as four cars at about 1500 kg, an excavator, a boat, two ships, and an airplane. Only the cars are road vehicles under 8000 kg. The reference itself gets read as a boat, which is why I don't take the capacity from the reference. I take it from the tow truck.
+On that picture the tiles read as four cars at about 1500 kg, an excavator at 25000, a boat at 20000, two ships, and an airplane at 70000. Kind road and mass at or under 8000 leaves the four cars. The excavator is road-adjacent in appearance and fails the kind. The boat is under no tow limit that applies, because its kind is water. The reference itself reads as a boat, which is why the 8000 does not come from the reference's mass.
 
-## A question I haven't listed
+## A question with no list
 
-If the wording isn't one of the lists above, and it isn't a tow or a weight question, I take the object phrase out of the question and score each tile as "a photo of that thing" minus the best of three bland phrases: a photo of something, a photo of an object, a random photo. Anything above 0 gets clicked. If nothing is above 0, I click the best tile. This is a guess. It's what I use when I don't have a list yet.
+The object phrase is taken from the question. The tile's score is its cosine with "a photo of that thing", averaged over three phrasings, minus the best cosine with three bland phrases: a photo of something, a photo of an object, a random photo.
 
-## Which of these I use
+The subtraction is the part that makes the number mean something. A tile correlates a little with any "a photo of" sentence. The bland phrases estimate that floor. What is left is the extra similarity to the named object. A tile is clicked when the extra is above 0. If none are, the best tile is clicked. This is a guess for a wording that has no list. The half-probability rule does not apply, because there is no softmax over a closed set.
 
-If the board has a reference picture and the wording isn't one of the lists, I use the tow and weight reading.
+## Which reading runs
 
-If the question is about orientation, upside down or a rotated image, I don't use the lists. I pick the tile that looks least like the other tiles.
+If the board has a reference picture and the wording is not one of the closed lists, the mass reading runs.
 
-If a list matches, the list wins, even when a reference picture is also there.
+If the question is about orientation, upside down or a rotated image, the lists do not apply. Each tile is compared with the others as a picture, and the one least like the rest is the click. There is no yes-class.
 
-Otherwise I use the bland-phrase guess.
+If a list matches, the list runs, even when a reference picture is also on the board.
 
-The embedding is CLIP, the usual image-text one. A class is the average of its prompts, normalised. The tile's probabilities are a softmax of 100 times the similarity, which is the scale CLIP was trained with. The yes probability is the sum over the yes classes.
+Otherwise the bland-phrase guess runs.
