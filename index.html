@@ -3,7 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>hcap research</title>
+<title>hCaptcha research</title>
+<meta name="description" content="Research notes on hCaptcha image and clip tasks: how each picture is measured, where the cutoffs come from, and where a small convolutional network is used.">
+<meta property="og:title" content="hCaptcha research">
+<meta property="og:description" content="Notes on reading hCaptcha pictures. Brightness correlation, shape overlap, and small convolutional nets.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://buggerlogger.github.io/hcaptcha-research/">
+<meta property="og:image" content="https://buggerlogger.github.io/hcaptcha-research/cover.png">
 <style>
   :root {
     --paper: #f3efe6;
@@ -165,7 +171,7 @@
 <body>
 <div class="layout">
   <nav id="nav">
-    <p class="brand">hcap research</p>
+    <p class="brand">hCaptcha research</p>
   </nav>
   <main>
     <article id="doc"><p>Loading.</p></article>
@@ -199,7 +205,7 @@ const NOTES = [
 
 function siteBase() {
   const path = location.pathname;
-  const mark = "/hcap-research/";
+  const mark = "/hcaptcha-research/";
   const at = path.indexOf(mark);
   if (at >= 0) return path.slice(0, at + mark.length);
   return path.endsWith("/") ? path : path.replace(/[^/]*$/, "");
@@ -326,7 +332,7 @@ function show(note) {
     })
     .then(function (md) {
       doc.innerHTML = render(md);
-      document.title = note[1] + " - hcap research";
+      document.title = note[1] + " - hCaptcha research";
       doc.querySelectorAll("img").forEach(function (img) {
         img.src = BASE + resolvePath(note[2], img.getAttribute("data-src"));
       });

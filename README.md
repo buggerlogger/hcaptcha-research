@@ -1,7 +1,8 @@
-# Notes
+# hCaptcha research
 
 ![hCaptcha](cover.png)
 
+Notes on reading hCaptcha image and clip tasks. The measurements are brightness correlation, shape overlap, and small convolutional nets.
 
 [Screw](screw/README.md). The empty joint is thick wood near the middle of the planks, where the plank edges meet at several angles.
 
