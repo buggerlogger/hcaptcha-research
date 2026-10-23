@@ -2,7 +2,6 @@
 
 ![hCaptcha](cover.png)
 
-One note per puzzle, hardest first. The pictures sit in the same folder as the note.
 
 [Screw](screw/README.md). The empty joint is thick wood near the middle of the planks, where the plank edges meet at several angles.
 
